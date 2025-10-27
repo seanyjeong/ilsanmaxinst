@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>학생 공지사항 관리 (관리자)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* 기존 관리자 페이지 스타일 변수 재활용 */
+        :root {
+            --primary-color: #2563eb; --primary-dark:#1d4ed8;
+            --light-bg: #f8fafc; --card-bg: #ffffff;
+            --border-color: #e2e8f0; --text-primary:#1e293b; --text-secondary:#475569;
+            --danger-color: #ef4444; --success-color: #10b981; --warning-color: #f59e0b;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Pretendard', sans-serif; background: var(--light-bg); padding: 20px; margin: 0; line-height: 1.5; color: var(--text-primary); }
+        .container { max-width: 900px; margin: 0 auto; }
+
+        /* ---------- Header ---------- */
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 12px; flex-wrap: wrap;
+            background: var(--card-bg); padding: 16px 18px; border-radius: 12px; box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+        .header h1 { font-size: 1.6rem; color: var(--primary-color); margin: 0; display: flex; align-items: center; gap: 10px; }
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: none; border-radius: 8px; font-weight: 600; font-size: .9rem; cursor: pointer; transition: .2s; }
+        .btn-primary { background: var(--primary-color); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-primary:disabled { background: #9ca3af; cursor: not-allowed; opacity: 0.7; }
+        .btn-danger { background: var(--danger-color); color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-secondary { background: #e2e8f0; color: var(--text-secondary); }
+        .btn-secondary:hover { background: #cbd5e1; }
+
+        /* ---------- Card ---------- */
+        .card { background: var(--card-bg); border-radius: 12px; box-shadow: var(--shadow); padding: 20px; margin-bottom: 20px; }
+        .card-title { font-size: 1.3rem; font-weight: 600; margin: 0 0 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
+
+        /* 폼 요소 */
+        .form-group { display: flex; flex-direction: column; margin-bottom: 15px; }
+        .form-group label { font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; color: var(--text-secondary); }
+        .form-group input[type="text"], .form-group select, .form-group textarea {
+            width: 100%; padding: 10px; font-size: 0.95rem;
+            border: 1px solid var(--border-color); border-radius: 8px; font-family: 'Pretendard', sans-serif;
+        }
+        .form-group textarea { min-height: 120px; resize: vertical; }
+        .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
+
+        /* 공지사항 목록 */
+        #announcementList { list-style: none; padding: 0; margin: 0; }
+        .announcement-item {
+            background: #f8fafc; border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 15px; margin-bottom: 15px;
+        }
+        .announcement-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed var(--border-color);
+        }
+        .announcement-title { font-size: 1.1rem; font-weight: 600; margin: 0; flex-grow: 1; }
+        .announcement-meta { font-size: 0.8rem; color: var(--text-secondary); text-align: right; white-space: nowrap; margin-left: 15px; }
+        .announcement-meta .branch { font-weight: 600; color: var(--primary-color); display: block; }
+        .announcement-meta .date { display: block; margin-top: 3px; }
+        .announcement-content { font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; margin-bottom: 15px; }
+        .announcement-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+        /* 로딩/데이터 없음 */
+        .loading, .no-data { text-align: center; padding: 30px; color: var(--text-secondary); }
+
+        /* --- Toast Popup --- */
+        .toast-popup {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background-color: rgba(0,0,0,0.8); color: white; padding: 10px 18px; border-radius: 20px;
+            font-size: 0.9rem; z-index: 1002; opacity: 0; transition: opacity 0.3s, bottom 0.3s;
+            pointer-events: none;
+        }
+        .toast-popup.show { opacity: 1; bottom: 40px; }
+        .toast-popup.success { background-color: var(--success-color); }
+        .toast-popup.error { background-color: var(--danger-color); }
+
+        /* --- 모바일 반응형 --- */
+        @media (max-width: 767px) {
+            body { padding: 10px; }
+            .header { flex-direction: column; align-items: stretch; padding: 15px; }
+            .header h1 { font-size: 1.4rem; }
+            .btn { justify-content: center; }
+            .card { padding: 15px; }
+            .announcement-header { flex-direction: column; align-items: stretch; }
+            .announcement-meta { text-align: left; margin-left: 0; margin-top: 8px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1><i class="fas fa-bullhorn"></i> 학생 공지사항 관리</h1>
+        </div>
+
+    <div class="card" id="announcementFormCard">
+        <h4 class="card-title" id="formTitle">새 공지사항 작성</h4>
+        <input type="hidden" id="editingNoticeId"> <div class="form-group">
+            <label for="noticeTitle">제목 (필수)</label>
+            <input type="text" id="noticeTitle" placeholder="공지 제목을 입력하세요">
+        </div>
+        <div class="form-group">
+            <label for="noticeContent">내용</label>
+            <textarea id="noticeContent" rows="5" placeholder="공지 내용을 입력하세요..."></textarea>
+        </div>
+        <div class="form-group">
+            <label for="noticeBranch">대상 지점</label>
+            <select id="noticeBranch">
+                <option value="">- 전체 학생 -</option>
+                </select>
+        </div>
+        <div class="form-actions">
+            <button type="button" id="cancelEditBtn" class="btn btn-secondary" style="display: none;">취소</button>
+            <button type="button" id="saveNoticeBtn" class="btn btn-primary">
+                <i class="fas fa-save"></i> 저장하기
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h4 class="card-title">공지 목록</h4>
+        <div id="announcementList">
+            <p class="loading" id="listLoading"><i class="fas fa-spinner fa-spin"></i> 목록 로딩 중...</p>
+        </div>
+    </div>
+</div>
+
+<template id="announcementItemTemplate">
+    <div class="announcement-item" data-notice-id="{{notice_id}}">
+        <div class="announcement-header">
+            <h5 class="announcement-title">공지 제목</h5>
+            <div class="announcement-meta">
+                <span class="branch">대상: 전체</span>
+                <span class="date">작성일: YYYY-MM-DD HH:MM</span>
+                <span class="author" style="font-size: 0.75rem;">(작성자: 아이디)</span>
+            </div>
+        </div>
+        <div class="announcement-content">
+            공지 내용이 여기에 표시됩니다.
+        </div>
+        <div class="announcement-actions">
+            <button type="button" class="btn btn-secondary btn-sm edit-btn">
+                <i class="fas fa-edit"></i> 수정
+            </button>
+            <button type="button" class="btn btn-danger btn-sm delete-btn">
+                <i class="fas fa-trash"></i> 삭제
+            </button>
+        </div>
+    </div>
+</template>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- 서버 및 인증 ---
+        const SVR_JUNGSI = 'https://supermax.kr'; // jungsi 서버
+        const LOGIN_PAGE = 'admin_login.html'; // 관리자 로그인 페이지
+
+        // --- HTML 요소 ---
+        const announcementFormCard = document.getElementById('announcementFormCard');
+        const formTitle = document.getElementById('formTitle');
+        const editingNoticeId = document.getElementById('editingNoticeId');
+        const noticeTitle = document.getElementById('noticeTitle');
+        const noticeContent = document.getElementById('noticeContent');
+        const noticeBranch = document.getElementById('noticeBranch');
+        const saveNoticeBtn = document.getElementById('saveNoticeBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const announcementList = document.getElementById('announcementList');
+        const listLoading = document.getElementById('listLoading');
+
+        let currentUser = null; // 로그인한 사용자 정보
+        let branchList = []; // 지점 목록
+
+        // --- 인증 확인 ---
+        const getToken = () => localStorage.getItem('jwt_token');
+        const token = getToken();
+        if (!token) { alert('로그인이 필요합니다.'); window.location.href = LOGIN_PAGE; return; }
+        try {
+            const payloadBase64Url = token.split('.')[1];
+            const payloadBase64 = payloadBase64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const decodedString = new TextDecoder().decode(Uint8Array.from(atob(payloadBase64), c => c.charCodeAt(0)));
+            currentUser = JSON.parse(decodedString);
+            console.log("로그인 사용자:", currentUser);
+            // 페이지 자체 접근 권한 체크는 페이지별로 다를 수 있으므로 여기서는 제거.
+            // 필요하다면 다시 추가:
+            // if (currentUser.role !== 'admin' && currentUser.userid !== 'sean8320') {
+            //     alert('관리자 계정으로 로그인해야 접근 가능합니다.');
+            //     window.location.href = LOGIN_PAGE;
+            //     return;
+            // }
+        } catch (e) {
+            console.error('토큰 처리 실패:', e); alert('인증 정보 오류.'); window.location.href = LOGIN_PAGE; return;
+        }
+
+        // --- API 호출 함수 (인증 포함, 403 처리 수정) ---
+        const apiCall = async (url, options = {}) => {
+            const currentToken = getToken();
+            if (!currentToken) { alert('로그인 세션 만료'); window.location.href = LOGIN_PAGE; throw new Error('로그인 만료'); }
+            options.headers = { ...options.headers, 'Authorization': `Bearer ${currentToken}` };
+            try {
+                const response = await fetch(url, options);
+                // ⭐️ 403 Forbidden 에러 시 로그인 페이지 리다이렉션 방지 (권한 없음 메시지만)
+                if (response.status === 401) { // 401 Unauthorized (토큰 만료 등)
+                     alert('로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
+                     localStorage.removeItem('jwt_token');
+                     window.location.href = LOGIN_PAGE;
+                     throw new Error('로그인 만료');
+                } else if (response.status === 403) { // 403 Forbidden (권한 없음)
+                     alert('이 기능에 접근할 권한이 없습니다.'); // 메시지만 보여줌
+                     throw new Error('권한 없음'); // 에러 발생시켜 로직 중단
+                }
+                if (!response.ok) {
+                    let errorMsg = `HTTP 오류 ${response.status}`; try { const errorData = await response.json(); errorMsg = errorData.message || errorMsg; } catch (_) {} throw new Error(errorMsg);
+                }
+                if (response.status === 204) { return { success: true }; } // DELETE 성공 시
+                 return await response.json(); // 200, 201 등
+            } catch (error) {
+                console.error('API 호출 실패:', url, error);
+                // ⭐️ 로그인 만료/권한 없음 외 다른 에러만 throw 하도록 수정
+                if (error.message !== '로그인 만료' && error.message !== '권한 없음') {
+                    // 네트워크 오류 등 다른 에러 발생 시 토스트 메시지 표시
+                    showToast(`네트워크 또는 서버 오류: ${error.message}`, false);
+                    throw new Error(error.message || '네트워크 오류');
+                }
+                // 로그인 만료/권한 없음 에러는 alert가 이미 떴으므로 그대로 throw (호출한 쪽에서 catch 불필요)
+                throw error;
+            }
+        };
+
+
+        // --- Toast Popup 함수 ---
+        const showToast = (message, isSuccess = true) => {
+            const el = document.createElement('div'); el.textContent = message; el.className = `toast-popup ${isSuccess ? 'success' : 'error'}`; document.body.appendChild(el); setTimeout(() => el.classList.add('show'), 10); setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 500); }, 2500);
+        };
+
+        // --- 날짜 포맷팅 헬퍼 ---
+        const formatDateTime = (isoString) => {
+            if (!isoString) return ''; try { const date = new Date(isoString); return date.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).replace(/\. /g, '-').replace('.', ''); } catch (e) { return isoString; }
+        };
+
+        // --- 관리자인지 확인하는 함수 ---
+        const isAdminUser = () => {
+            return currentUser && (currentUser.role === 'admin' || currentUser.userid === 'sean8320');
+        }
+
+        // --- 1. 지점 목록 로드 (대상 지점 선택용 - 역할에 따라 분기) ---
+const loadBranches = () => {
+            // currentUser 객체는 페이지 상단에서 이미 정의됨
+            const loggedInBranch = currentUser ? currentUser.branch : null;
+
+            console.log('loadBranches: Using logged-in user branch:', loggedInBranch);
+
+            // 드롭다운 초기화
+            noticeBranch.innerHTML = '<option value="">- 전체 학생 -</option>'; // 기본값: 전체
+
+            if (loggedInBranch) {
+                // 로그인한 사용자의 지점 정보가 있으면 해당 지점만 옵션으로 추가
+                const option = document.createElement('option');
+                option.value = loggedInBranch;
+                option.textContent = loggedInBranch;
+                noticeBranch.appendChild(option);
+                console.log(` -> Added option for branch: ${loggedInBranch}`);
+                branchList = [loggedInBranch]; // 전역 변수 업데이트 (필요 시)
+                noticeBranch.disabled = false; // 드롭다운 활성화 (전체 또는 자기 지점 선택 가능)
+            } else {
+                // 토큰에 지점 정보가 없는 경우 (예: 최상위 관리자 계정 등)
+                console.warn(' -> Logged-in user has no branch information. Only "전체 학생" available.');
+                branchList = [];
+                // noticeBranch.disabled = true; // 이 경우 선택 못하게 할 수도 있음 (선택)
+            }
+        };
+
+        // --- 2. 공지사항 목록 로드 및 렌더링 ---
+        const loadAnnouncements = async () => {
+            listLoading.style.display = 'block';
+            announcementList.innerHTML = '';
+            announcementList.appendChild(listLoading);
+
+            try {
+                // API 호출 (authMiddleware 사용 - 모든 로그인 사용자 접근 가능)
+                const data = await apiCall(`${SVR_JUNGSI}/jungsi/student/announcements`);
+
+                listLoading.style.display = 'none';
+
+                if (data.success && data.announcements) {
+                    if (data.announcements.length === 0) {
+                        announcementList.innerHTML = '<p class="no-data">작성된 공지사항이 없습니다.</p>';
+                        return;
+                    }
+                    data.announcements.forEach(notice => {
+                        const item = createAnnouncementItem(notice);
+                        announcementList.appendChild(item);
+                    });
+                } else {
+                    announcementList.innerHTML = `<p class="no-data">공지 목록 로드 실패: ${data.message || '오류'}</p>`;
+                }
+            } catch (err) {
+                 listLoading.style.display = 'none';
+                 // apiCall 내부에서 alert를 띄우거나 리다이렉션하므로, 여기서는 추가 동작 불필요
+                 console.error('loadAnnouncements error caught:', err.message); // 콘솔에만 기록
+                 // 필요한 경우 에러 메시지 표시:
+                 // if (err.message !== '권한 없음' && err.message !== '로그인 만료') {
+                 //     announcementList.innerHTML = `<p class="no-data">오류 발생: ${err.message}</p>`;
+                 // }
+            }
+        };
+
+        // --- 2-1. 개별 공지 항목 생성 함수 ---
+        const createAnnouncementItem = (notice) => {
+            const template = document.getElementById('announcementItemTemplate');
+            const item = template.content.cloneNode(true).firstElementChild;
+
+            item.dataset.noticeId = notice.notice_id;
+            item.dataset.noticeData = JSON.stringify(notice);
+
+            item.querySelector('.announcement-title').textContent = notice.title;
+            item.querySelector('.announcement-content').textContent = notice.content || '(내용 없음)';
+            item.querySelector('.announcement-meta .branch').textContent = `대상: ${notice.branch_name || '전체'}`;
+            item.querySelector('.announcement-meta .date').textContent = `작성일: ${formatDateTime(notice.created_at)}`;
+            item.querySelector('.announcement-meta .author').textContent = `(작성자: ${notice.created_by || '알수없음'})`;
+
+            // ⭐️ 수정/삭제 버튼은 관리자에게만 보이도록
+            if (isAdminUser()) {
+                item.querySelector('.edit-btn').addEventListener('click', () => {
+                    startEditAnnouncement(notice);
+                });
+                item.querySelector('.delete-btn').addEventListener('click', () => {
+                    deleteAnnouncement(notice.notice_id, notice.title);
+                });
+            } else {
+                item.querySelector('.announcement-actions').style.display = 'none';
+            }
+
+            return item;
+        };
+
+        // --- 3. 새 공지사항 저장 ---
+        const saveNewAnnouncement = async () => {
+            const isAdmin = isAdminUser(); // 관리자인지 확인
+            const title = noticeTitle.value.trim();
+            const content = noticeContent.value.trim();
+            // 관리자는 선택한 지점, 일반 사용자는 항상 ""(전체)
+            const branch = isAdmin ? noticeBranch.value : "";
+
+            if (!title) { showToast('공지 제목을 입력하세요.', false); noticeTitle.focus(); return; }
+
+            saveNoticeBtn.disabled = true;
+            saveNoticeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
+
+            try {
+                // 관리자용 추가 API 호출 (백엔드에서 권한 체크)
+                await apiCall(`${SVR_JUNGSI}/jungsi/admin/student-announcements/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: title,
+                        content: content,
+                        target_branch: branch || null // "" 이면 null (전체)
+                    })
+                });
+                showToast('✅ 새 공지사항이 등록되었습니다.', true);
+                resetForm();
+                loadAnnouncements();
+            } catch (err) {
+                 // apiCall에서 '권한 없음' 등 에러 발생 시 이미 alert 띄움
+                 console.error('saveNewAnnouncement error caught:', err.message); // 콘솔 기록만
+            } finally {
+                 saveNoticeBtn.disabled = false;
+                 saveNoticeBtn.innerHTML = '<i class="fas fa-save"></i> 저장하기';
+            }
+        };
+
+        // --- 4. 공지사항 수정 시작 ---
+        const startEditAnnouncement = (notice) => {
+            if (!isAdminUser()) { showToast('공지사항 수정 권한이 없습니다.', false); return; }
+
+            formTitle.textContent = '공지사항 수정';
+            editingNoticeId.value = notice.notice_id;
+            noticeTitle.value = notice.title;
+            noticeContent.value = notice.content || '';
+            noticeBranch.value = notice.branch_name || '';
+            noticeBranch.disabled = false; // 관리자는 지점 변경 가능
+            saveNoticeBtn.innerHTML = '<i class="fas fa-edit"></i> 수정 완료';
+            cancelEditBtn.style.display = 'inline-flex';
+            announcementFormCard.scrollIntoView({ behavior: 'smooth' });
+        };
+
+        // --- 5. 공지사항 수정 저장 ---
+        const saveEditedAnnouncement = async () => {
+            const noticeId = editingNoticeId.value;
+            if (!isAdminUser()) { showToast('공지사항 수정 권한이 없습니다.', false); return; }
+
+            const title = noticeTitle.value.trim();
+            const content = noticeContent.value.trim();
+            const branch = noticeBranch.value;
+
+            if (!noticeId) { showToast('수정할 공지 ID가 없습니다.', false); return; }
+            if (!title) { showToast('공지 제목을 입력하세요.', false); noticeTitle.focus(); return; }
+
+            saveNoticeBtn.disabled = true;
+            saveNoticeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 수정 중...';
+
+            try {
+                // 관리자용 수정 API 호출
+                await apiCall(`${SVR_JUNGSI}/jungsi/admin/student-announcements/update/${noticeId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: title,
+                        content: content,
+                        target_branch: branch || null
+                    })
+                });
+                showToast('✅ 공지사항이 수정되었습니다.', true);
+                resetForm();
+                loadAnnouncements();
+            } catch (err) {
+                 console.error('saveEditedAnnouncement error caught:', err.message);
+            } finally {
+                 saveNoticeBtn.disabled = false;
+                 // resetForm에서 버튼 텍스트 복구됨
+            }
+        };
+
+        // --- 6. 공지사항 삭제 ---
+        const deleteAnnouncement = async (noticeId, title) => {
+            if (!isAdminUser()) { showToast('공지사항 삭제 권한이 없습니다.', false); return; }
+            if (!confirm(`[${title}] 공지사항을 정말 삭제하시겠습니까?`)) { return; }
+
+            try {
+                // 관리자용 삭제 API 호출
+                await apiCall(`${SVR_JUNGSI}/jungsi/admin/student-announcements/delete/${noticeId}`, {
+                    method: 'DELETE'
+                });
+                showToast('🗑️ 공지사항이 삭제되었습니다.', true);
+                loadAnnouncements();
+            } catch (err) {
+                 console.error('deleteAnnouncement error caught:', err.message);
+            }
+        };
+
+        // --- 7. 폼 초기화 함수 ---
+        const resetForm = () => {
+            const isAdmin = isAdminUser();
+            formTitle.textContent = '새 공지사항 작성';
+            editingNoticeId.value = '';
+            noticeTitle.value = '';
+            noticeContent.value = '';
+            noticeBranch.value = '';
+            noticeBranch.disabled = !isAdmin; // 관리자만 활성화
+            saveNoticeBtn.innerHTML = '<i class="fas fa-save"></i> 저장하기';
+            saveNoticeBtn.disabled = false;
+            cancelEditBtn.style.display = 'none';
+        };
+
+        // --- 이벤트 리스너 연결 ---
+        saveNoticeBtn.addEventListener('click', () => {
+            if (editingNoticeId.value) {
+                saveEditedAnnouncement();
+            } else {
+                saveNewAnnouncement();
+            }
+        });
+        cancelEditBtn.addEventListener('click', resetForm); // 취소 버튼
+
+        // --- 초기 실행 ---
+        const initializePage = async () => {
+             // ⭐️ 순서 중요: 공지 목록 로드 -> 지점 목록 로드 (역할별 분기)
+            await loadAnnouncements(); // 1. 공지 목록 로드 (이제 선생님/원장도 가능)
+            await loadBranches();      // 2. 지점 목록 로드 (관리자만 API 호출)
+            resetForm();               // 3. 폼 초기화 (지점 드롭다운 상태 결정 후)
+        };
+        initializePage();
+    });
+</script>
+
+</body>
+</html>
